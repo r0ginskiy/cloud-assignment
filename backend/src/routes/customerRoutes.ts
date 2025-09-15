@@ -6,7 +6,7 @@ import { logger } from "../utils/logger.js";
 const router = Router();
 
 // POST /customer
-router.post("/", (req: Request, res: Response) => {
+router.post("/", async (req: Request, res: Response) => {
   const { error, value } = customerIdSchema.validate(req.body);
 
   if (error) {
@@ -15,7 +15,7 @@ router.post("/", (req: Request, res: Response) => {
   }
 
   try {
-    const customer = addCustomer(value.id);
+    const customer = await addCustomer(value.id);
     logger.info("Customer created", { id: value.id });
     res.status(201).json(customer);
   } catch (err: any) {
@@ -25,31 +25,43 @@ router.post("/", (req: Request, res: Response) => {
 });
 
 // GET /customer/:id
-router.get("/:id", (req: Request, res: Response) => {
+router.get("/:id", async (req: Request, res: Response) => {
   const { id } = req.params;
-  const customer = getCustomer(id);
 
-  if (!customer) {
-    logger.warn("Customer not found", { id });
-    return res.status(404).json({ error: "Customer not found" });
+  try {
+    const customer = await getCustomer(id);
+
+    if (!customer) {
+      logger.warn("Customer not found", { id });
+      return res.status(404).json({ error: "Customer not found" });
+    }
+
+    logger.info("Customer fetched", { id });
+    res.json(customer);
+  } catch (err: any) {
+    logger.error("Error fetching customer", { error: err.message });
+    res.status(500).json({ error: "Internal server error" });
   }
-
-  logger.info("Customer fetched", { id });
-  res.json(customer);
 });
 
 // DELETE /customer/:id
-router.delete("/:id", (req: Request, res: Response) => {
+router.delete("/:id", async (req: Request, res: Response) => {
   const { id } = req.params;
-  const success = deleteCustomer(id);
 
-  if (!success) {
-    logger.warn("Customer not found for delete", { id });
-    return res.status(404).json({ error: "Customer not found" });
+  try {
+    const success = await deleteCustomer(id);
+
+    if (!success) {
+      logger.warn("Customer not found for delete", { id });
+      return res.status(404).json({ error: "Customer not found" });
+    }
+
+    logger.info("Customer deleted", { id });
+    res.json({ message: "Customer deleted" });
+  } catch (err: any) {
+    logger.error("Error deleting customer", { error: err.message });
+    res.status(500).json({ error: "Internal server error" });
   }
-
-  logger.info("Customer deleted", { id });
-  res.json({ message: "Customer deleted" });
 });
 
 export default router;

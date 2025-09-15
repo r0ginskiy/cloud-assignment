@@ -1,32 +1,38 @@
+import db from "../db.js";
 import { Customer } from "../models/customer.js";
 
-const customers: Customer[] = [];
-
-export const addCustomer = (id: string): Customer => {
+export const addCustomer = async (id: string): Promise<Customer> => {
+  await db.read();
   const idStr = String(id);
 
-  const existing = customers.find((c) => c.id === idStr);
+  const existing = db.data?.customers.find((c) => c.id === idStr);
   if (existing) {
     throw new Error("Customer already exists");
   }
 
   const newCustomer: Customer = {
     id: idStr,
-    createdAt: new Date(),
+    createdAt: new Date().toISOString(),
   };
 
-  customers.push(newCustomer);
+  db.data?.customers.push(newCustomer);
+  await db.write();
+
   return newCustomer;
 };
 
-export const getCustomer = (id: string): Customer | null => {
-  return customers.find((c) => c.id === String(id)) || null;
+export const getCustomer = async (id: string): Promise<Customer | null> => {
+  await db.read();
+  return db.data?.customers.find((c) => c.id === String(id)) || null;
 };
 
-export const deleteCustomer = (id: string): boolean => {
-  const index = customers.findIndex((c) => c.id === String(id));
-  if (index === -1) return false;
+export const deleteCustomer = async (id: string): Promise<boolean> => {
+  await db.read();
+  const index = db.data?.customers.findIndex((c) => c.id === String(id));
+  if (index === -1 || index === undefined) return false;
 
-  customers.splice(index, 1);
+  db.data?.customers.splice(index, 1);
+  await db.write();
+
   return true;
 };
