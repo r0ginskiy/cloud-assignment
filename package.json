@@ -9,5 +9,12 @@
   "keywords": [],
   "author": "",
   "license": "ISC",
-  "type": "commonjs"
+  "type": "commonjs",
+  "dependencies": {
+    "joi": "^18.0.1",
+    "winston": "^3.17.0"
+  },
+  "devDependencies": {
+    "@types/joi": "^17.2.2"
+  }
 }
