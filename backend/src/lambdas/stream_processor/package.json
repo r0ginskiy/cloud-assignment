@@ -1,0 +1,8 @@
+{
+  "name": "stream-processor",
+  "version": "1.0.0",
+  "type": "commonjs",
+  "dependencies": {
+    "@aws-sdk/client-sfn": "^3.657.0"
+  }
+}

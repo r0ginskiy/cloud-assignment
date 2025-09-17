@@ -1,6 +1,9 @@
-import { DynamoDBClient, GetItemCommand } from "@aws-sdk/client-dynamodb";
+import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
+import { DynamoDBDocumentClient, GetCommand } from "@aws-sdk/lib-dynamodb";
 
 const client = new DynamoDBClient({});
+const ddbDocClient = DynamoDBDocumentClient.from(client);
+
 const TABLE_NAME = process.env.TABLE_NAME;
 
 export const handler = async (event) => {
@@ -27,12 +30,12 @@ export const handler = async (event) => {
       };
     }
 
-    const params = {
-      TableName: TABLE_NAME,
-      Key: { id: { S: id } },
-    };
-
-    const result = await client.send(new GetItemCommand(params));
+    const result = await ddbDocClient.send(
+      new GetCommand({
+        TableName: TABLE_NAME,
+        Key: { id },
+      })
+    );
 
     if (!result.Item) {
       return {
@@ -45,10 +48,7 @@ export const handler = async (event) => {
     return {
       statusCode: 200,
       headers: { "Access-Control-Allow-Origin": "*" },
-      body: JSON.stringify({
-        id: result.Item.id.S,
-        createdAt: result.Item.createdAt.S,
-      }),
+      body: JSON.stringify(result.Item),
     };
   } catch (err) {
     console.error("Error in get_customer_id:", err);

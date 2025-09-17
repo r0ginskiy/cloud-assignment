@@ -23,6 +23,8 @@ Resources:
         - AttributeName: id
           KeyType: HASH
       BillingMode: PAY_PER_REQUEST
+      StreamSpecification:
+        StreamViewType: NEW_IMAGE
 
   CustomerApi:
     Type: AWS::Serverless::Api
@@ -87,6 +89,55 @@ Resources:
             Auth:
               ApiKeyRequired: true
 
+  StreamProcessorFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/lambdas/stream_processor/
+      Handler: app.handler
+      Policies:
+        - Statement:
+            - Effect: Allow
+              Action:
+                - states:StartExecution
+              Resource: !Ref CustomerStateMachine
+      Environment:
+        Variables:
+          CUSTOMER_STATE_MACHINE_ARN: !Ref CustomerStateMachine
+      Events:
+        DynamoDBStream:
+          Type: DynamoDB
+          Properties:
+            Stream: !GetAtt CustomerTable.StreamArn
+            StartingPosition: TRIM_HORIZON
+
+  ProcessCustomerFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/lambdas/process_customer/
+      Handler: app.handler
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: customer_ids
+      Environment:
+        Variables:
+          PROCESSED_CUSTOMERS_TABLE: !Ref CustomerTable
+
+  CustomerStateMachine:
+    Type: AWS::Serverless::StateMachine
+    Properties:
+      Name: CustomerWorkflow
+      Definition:
+        Comment: "Workflow запускается при добавлении нового customer"
+        StartAt: ProcessCustomer
+        States:
+          ProcessCustomer:
+            Type: Task
+            Resource: !GetAtt ProcessCustomerFunction.Arn
+            End: true
+      Policies:
+        - LambdaInvokePolicy:
+            FunctionName: !Ref ProcessCustomerFunction
+
   CustomerUsagePlan:
     Type: AWS::ApiGateway::UsagePlan
     Properties:
@@ -95,7 +146,7 @@ Resources:
         - ApiId: !Ref CustomerApi
           Stage: Prod
       Throttle:
-        RateLimit: 10   
+        RateLimit: 10
         BurstLimit: 5
       Quota:
         Limit: 1000
@@ -117,6 +168,39 @@ Resources:
       KeyType: API_KEY
       UsagePlanId: !Ref CustomerUsagePlan
 
+  EventBridgeInvokeRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: events.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: AllowStartExecution
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - states:StartExecution
+                Resource: "*"
+
+  CustomerEventRule:
+    Type: AWS::Events::Rule
+    Properties:
+      EventPattern:
+        source:
+          - "aws.dynamodb"
+        detail-type:
+          - "AWS API Call via CloudTrail"
+      Targets:
+        - Arn: !Ref CustomerStateMachine
+          Id: "CustomerWorkflowTarget"
+          RoleArn: !GetAtt EventBridgeInvokeRole.Arn
+
 Outputs:
   CustomerApiBaseUrl:
     Description: "Base URL for Customer API"
@@ -127,3 +211,6 @@ Outputs:
   CustomerApiKey:
     Description: "API Key for Customer API"
     Value: !Ref CustomerApiKey
+  CustomerStateMachineArn:
+    Description: "ARN of Customer Step Function"
+    Value: !Ref CustomerStateMachine
