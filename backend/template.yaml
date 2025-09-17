@@ -148,23 +148,6 @@ Resources:
         - LambdaInvokePolicy:
             FunctionName: !Ref ProcessCustomerFunction
 
-  ### API Gateway Deployment + Stage
-  CustomerApiDeployment:
-    Type: AWS::ApiGateway::Deployment
-    Properties:
-      RestApiId: !Ref CustomerApi
-    DependsOn:
-      - PutCustomerFunction
-      - GetCustomerFunction
-      - DeleteCustomerFunction
-
-  CustomerApiStage:
-    Type: AWS::ApiGateway::Stage
-    Properties:
-      StageName: Prod
-      RestApiId: !Ref CustomerApi
-      DeploymentId: !Ref CustomerApiDeployment
-
   ### Usage Plan + ApiKey
   CustomerUsagePlan:
     Type: AWS::ApiGateway::UsagePlan
@@ -172,7 +155,7 @@ Resources:
       UsagePlanName: !Sub "CustomerPlan-${AWS::StackName}"
       ApiStages:
         - ApiId: !Ref CustomerApi
-          Stage: !Ref CustomerApiStage
+          Stage: Prod
       Throttle:
         RateLimit: 10
         BurstLimit: 5
