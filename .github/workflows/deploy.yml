@@ -43,7 +43,7 @@ jobs:
 
       - name: Delete broken stack if needed
         run: |
-          STACK_NAME=cloud-assignment-backend
+          STACK_NAME=cloud-assignment
           STATUS=$(aws cloudformation describe-stacks \
             --stack-name $STACK_NAME \
             --query "Stacks[0].StackStatus" \
@@ -63,7 +63,7 @@ jobs:
         run: |
           sam build
           sam deploy \
-            --stack-name cloud-assignment-backend \
+            --stack-name cloud-assignment \
             --s3-bucket cloud-assignment-sam-artifacts \
             --no-confirm-changeset \
             --no-fail-on-empty-changeset \
