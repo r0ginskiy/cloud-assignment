@@ -41,16 +41,33 @@ jobs:
       - name: Install AWS SAM CLI
         run: pip install aws-sam-cli
 
+      - name: Delete broken stack if needed
+        run: |
+          STACK_NAME=cloud-assignment-backend
+          STATUS=$(aws cloudformation describe-stacks \
+            --stack-name $STACK_NAME \
+            --query "Stacks[0].StackStatus" \
+            --output text 2>/dev/null || echo "NOT_FOUND")
+
+          echo "Current stack status: $STATUS"
+
+          if [[ "$STATUS" == "ROLLBACK_COMPLETE" || "$STATUS" == "CREATE_FAILED" ]]; then
+            echo "Deleting broken stack..."
+            aws cloudformation delete-stack --stack-name $STACK_NAME
+            aws cloudformation wait stack-delete-complete --stack-name $STACK_NAME
+            echo "Stack deleted."
+          fi
+
       - name: Deploy with SAM
         working-directory: backend
         run: |
           sam build
           sam deploy \
-          --stack-name cloud-assignment-backend \
-          --s3-bucket cloud-assignment-sam-artifacts \
-          --no-confirm-changeset \
-          --no-fail-on-empty-changeset \
-          --capabilities CAPABILITY_IAM
+            --stack-name cloud-assignment-backend \
+            --s3-bucket cloud-assignment-sam-artifacts \
+            --no-confirm-changeset \
+            --no-fail-on-empty-changeset \
+            --capabilities CAPABILITY_IAM
 
   frontend:
     name: Deploy Frontend
