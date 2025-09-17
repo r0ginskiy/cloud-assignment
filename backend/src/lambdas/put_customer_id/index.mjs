@@ -1,5 +1,7 @@
 import { DynamoDBClient, PutItemCommand } from "@aws-sdk/client-dynamodb";
+import { SNSClient, PublishCommand } from "@aws-sdk/client-sns";
 
+const sns = new SNSClient();
 const client = new DynamoDBClient({});
 const TABLE_NAME = process.env.TABLE_NAME;
 
@@ -39,7 +41,17 @@ export const handler = async (event) => {
       },
     };
 
+ 
     await client.send(new PutItemCommand(params));
+
+    const message = `✅ New user created\nID: ${body.id}\nCreatedAt: ${createdAt}`;
+    await sns.send(
+      new PublishCommand({
+        TopicArn: process.env.SNS_TOPIC_ARN, 
+        Message: message,
+        Subject: "New Customer Created",
+      })
+    );
 
     return {
       statusCode: 201,

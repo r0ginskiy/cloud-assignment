@@ -35,6 +35,14 @@ Resources:
         AllowHeaders: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
         AllowOrigin: "'*'"
 
+  UserCreatedTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: user-created-alerts
+      Subscription:
+        - Protocol: email
+          Endpoint: r0ginskiial@gmail.com   
+
   PutCustomerFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -43,6 +51,12 @@ Resources:
       Policies:
         - DynamoDBCrudPolicy:
             TableName: customer_ids
+        - SNSPublishMessagePolicy:
+            TopicName: user-created-alerts
+      Environment:
+        Variables:
+          TABLE_NAME: customer_ids
+          SNS_TOPIC_ARN: !Ref UserCreatedTopic
       Events:
         PutCustomer:
           Type: Api
@@ -214,3 +228,6 @@ Outputs:
   CustomerStateMachineArn:
     Description: "ARN of Customer Step Function"
     Value: !Ref CustomerStateMachine
+  UserCreatedTopicArn:
+    Description: "SNS Topic ARN for new user alerts"
+    Value: !Ref UserCreatedTopic
