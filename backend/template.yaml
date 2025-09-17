@@ -14,6 +14,7 @@ Globals:
 Resources:
   CustomerTable:
     Type: AWS::DynamoDB::Table
+    DeletionPolicy: Retain   
     Properties:
       TableName: customer_ids
       AttributeDefinitions:
@@ -37,6 +38,7 @@ Resources:
 
   UserCreatedTopic:
     Type: AWS::SNS::Topic
+    DeletionPolicy: Retain  
     Properties:
       TopicName: user-created-alerts
       Subscription:
@@ -141,7 +143,7 @@ Resources:
     Properties:
       Name: CustomerWorkflow
       Definition:
-        Comment: "Workflow запускается при добавлении нового customer"
+        Comment: "The workflow starts when a new customer is added."
         StartAt: ProcessCustomer
         States:
           ProcessCustomer:
