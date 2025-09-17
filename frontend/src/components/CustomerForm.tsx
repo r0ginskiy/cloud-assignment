@@ -25,6 +25,7 @@ export function CustomerForm({
   type,
 }: CustomerFormProps) {
   const [id, setId] = useState("");
+  const [loading, setLoading] = useState(false);
   const toast = useToast();
 
   const handleSubmit = async () => {
@@ -37,16 +38,8 @@ export function CustomerForm({
       return;
     }
 
-    if (!/^\d+$/.test(id)) {
-      toast({
-        title: "Validation Error",
-        description: "ID must contain only digits",
-        status: "error",
-      });
-      return;
-    }
-
     try {
+      setLoading(true);
       const res = await action(id);
 
       if (res.error) {
@@ -80,6 +73,8 @@ export function CustomerForm({
         description: message,
         status: "error",
       });
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -91,12 +86,17 @@ export function CustomerForm({
             {title}
           </Heading>
           <Input
-            type="number"
             placeholder="Customer ID"
             value={id}
             onChange={(e) => setId(e.target.value)}
           />
-          <Button colorScheme={buttonColor} onClick={handleSubmit} width="full">
+          <Button
+            colorScheme={buttonColor}
+            onClick={handleSubmit}
+            width="full"
+            isLoading={loading}
+            isDisabled={!id.trim() || loading}
+          >
             {buttonLabel}
           </Button>
         </Stack>

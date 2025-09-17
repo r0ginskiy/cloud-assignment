@@ -1,0 +1,129 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+Description: Cloud Assignment - Backend with SAM
+
+Globals:
+  Function:
+    Runtime: nodejs22.x
+    Timeout: 10
+    MemorySize: 128
+    Environment:
+      Variables:
+        TABLE_NAME: customer_ids
+
+Resources:
+  CustomerTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: customer_ids
+      AttributeDefinitions:
+        - AttributeName: id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: id
+          KeyType: HASH
+      BillingMode: PAY_PER_REQUEST
+
+  CustomerApi:
+    Type: AWS::Serverless::Api
+    Properties:
+      StageName: Prod
+      Cors:
+        AllowMethods: "'GET,POST,DELETE,OPTIONS'"
+        AllowHeaders: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+        AllowOrigin: "'*'"
+
+  PutCustomerFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/lambdas/put_customer_id/
+      Handler: index.handler
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: customer_ids
+      Events:
+        PutCustomer:
+          Type: Api
+          Properties:
+            RestApiId: !Ref CustomerApi
+            Path: /customer
+            Method: post
+            Auth:
+              ApiKeyRequired: true
+
+  GetCustomerFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/lambdas/get_customer_id/
+      Handler: index.handler
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: customer_ids
+      Events:
+        GetCustomer:
+          Type: Api
+          Properties:
+            RestApiId: !Ref CustomerApi
+            Path: /customer/{id}
+            Method: get
+            Auth:
+              ApiKeyRequired: true
+
+  DeleteCustomerFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/lambdas/delete_customer_id/
+      Handler: index.handler
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: customer_ids
+      Events:
+        DeleteCustomer:
+          Type: Api
+          Properties:
+            RestApiId: !Ref CustomerApi
+            Path: /customer/{id}
+            Method: delete
+            Auth:
+              ApiKeyRequired: true
+
+  CustomerUsagePlan:
+    Type: AWS::ApiGateway::UsagePlan
+    Properties:
+      UsagePlanName: CustomerPlan
+      ApiStages:
+        - ApiId: !Ref CustomerApi
+          Stage: Prod
+      Throttle:
+        RateLimit: 10   
+        BurstLimit: 5
+      Quota:
+        Limit: 1000
+        Period: MONTH
+
+  CustomerApiKey:
+    Type: AWS::ApiGateway::ApiKey
+    Properties:
+      Name: CustomerApiKey
+      Enabled: true
+      StageKeys:
+        - RestApiId: !Ref CustomerApi
+          StageName: Prod
+
+  CustomerUsagePlanKey:
+    Type: AWS::ApiGateway::UsagePlanKey
+    Properties:
+      KeyId: !Ref CustomerApiKey
+      KeyType: API_KEY
+      UsagePlanId: !Ref CustomerUsagePlan
+
+Outputs:
+  CustomerApiBaseUrl:
+    Description: "Base URL for Customer API"
+    Value: !Sub "https://${CustomerApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/"
+  CustomerTableName:
+    Description: "DynamoDB table name"
+    Value: !Ref CustomerTable
+  CustomerApiKey:
+    Description: "API Key for Customer API"
+    Value: !Ref CustomerApiKey
