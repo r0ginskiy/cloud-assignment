@@ -46,9 +46,11 @@ jobs:
         run: |
           sam build
           sam deploy \
-            --stack-name cloud-assignment-backend \
-            --no-confirm-changeset \
-            --no-fail-on-empty-changeset
+          --stack-name cloud-assignment-backend \
+          --s3-bucket cloud-assignment-sam-artifacts \
+          --no-confirm-changeset \
+          --no-fail-on-empty-changeset \
+          --capabilities CAPABILITY_IAM
 
   frontend:
     name: Deploy Frontend
@@ -95,6 +97,4 @@ jobs:
         run: aws s3 sync dist/ s3://cloud-assignment-frontend-alex --delete
 
       - name: Invalidate CloudFront cache
-        run: aws cloudfront create-invalidation \
-          --distribution-id E23J7JTXMYM1M2 \
-          --paths "/*"
+        run: aws cloudfront create-invalidation --distribution-id E23J7JTXMYM1M2 --paths "/*"
