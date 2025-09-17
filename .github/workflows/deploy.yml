@@ -1,0 +1,100 @@
+name: Deploy Full Stack App
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  backend:
+    name: Deploy Backend
+    runs-on: ubuntu-latest
+    if: contains(github.event.head_commit.message, '[skip-backend]') == false
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Check for backend changes
+        id: backend_changes
+        uses: dorny/paths-filter@v3
+        with:
+          filters: |
+            backend:
+              - 'backend/**'
+
+      - name: Stop if no backend changes
+        if: steps.backend_changes.outputs.backend != 'true'
+        run: echo "No backend changes, skipping..." && exit 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
+
+      - name: Install AWS SAM CLI
+        run: pip install aws-sam-cli
+
+      - name: Deploy with SAM
+        working-directory: backend
+        run: |
+          sam build
+          sam deploy \
+            --stack-name cloud-assignment-backend \
+            --no-confirm-changeset \
+            --no-fail-on-empty-changeset
+
+  frontend:
+    name: Deploy Frontend
+    runs-on: ubuntu-latest
+    if: contains(github.event.head_commit.message, '[skip-frontend]') == false
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Check for frontend changes
+        id: frontend_changes
+        uses: dorny/paths-filter@v3
+        with:
+          filters: |
+            frontend:
+              - 'frontend/**'
+
+      - name: Stop if no frontend changes
+        if: steps.frontend_changes.outputs.frontend != 'true'
+        run: echo "No frontend changes, skipping..." && exit 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install dependencies
+        working-directory: frontend
+        run: npm install
+
+      - name: Build frontend
+        working-directory: frontend
+        run: npm run build
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
+
+      - name: Sync files to S3
+        working-directory: frontend
+        run: aws s3 sync dist/ s3://cloud-assignment-frontend-alex --delete
+
+      - name: Invalidate CloudFront cache
+        run: aws cloudfront create-invalidation \
+          --distribution-id E23J7JTXMYM1M2 \
+          --paths "/*"
