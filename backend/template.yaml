@@ -2,6 +2,17 @@ AWSTemplateFormatVersion: "2010-09-09"
 Transform: AWS::Serverless-2016-10-31
 Description: Cloud Assignment - Backend with SAM
 
+Parameters:
+  ExistingCustomerTableName:
+    Type: String
+    Default: customer_ids
+    Description: "Name of the existing DynamoDB table"
+
+  ExistingUserCreatedTopicArn:
+    Type: String
+    Default: arn:aws:sns:us-east-1:728750563276:user-created-alerts
+    Description: "ARN of the existing SNS topic for user-created alerts"
+
 Globals:
   Function:
     Runtime: nodejs22.x
@@ -9,24 +20,9 @@ Globals:
     MemorySize: 128
     Environment:
       Variables:
-        TABLE_NAME: customer_ids
+        TABLE_NAME: !Ref ExistingCustomerTableName
 
 Resources:
-  CustomerTable:
-    Type: AWS::DynamoDB::Table
-    DeletionPolicy: Retain   
-    Properties:
-      TableName: customer_ids
-      AttributeDefinitions:
-        - AttributeName: id
-          AttributeType: S
-      KeySchema:
-        - AttributeName: id
-          KeyType: HASH
-      BillingMode: PAY_PER_REQUEST
-      StreamSpecification:
-        StreamViewType: NEW_IMAGE
-
   CustomerApi:
     Type: AWS::Serverless::Api
     Properties:
@@ -36,15 +32,6 @@ Resources:
         AllowHeaders: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
         AllowOrigin: "'*'"
 
-  UserCreatedTopic:
-    Type: AWS::SNS::Topic
-    DeletionPolicy: Retain  
-    Properties:
-      TopicName: user-created-alerts
-      Subscription:
-        - Protocol: email
-          Endpoint: r0ginskiial@gmail.com   
-
   PutCustomerFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -52,13 +39,13 @@ Resources:
       Handler: index.handler
       Policies:
         - DynamoDBCrudPolicy:
-            TableName: customer_ids
+            TableName: !Ref ExistingCustomerTableName
         - SNSPublishMessagePolicy:
-            TopicName: user-created-alerts
+            TopicName: !Select [5, !Split [":", !Ref ExistingUserCreatedTopicArn]]
       Environment:
         Variables:
-          TABLE_NAME: customer_ids
-          SNS_TOPIC_ARN: !Ref UserCreatedTopic
+          TABLE_NAME: !Ref ExistingCustomerTableName
+          SNS_TOPIC_ARN: !Ref ExistingUserCreatedTopicArn
       Events:
         PutCustomer:
           Type: Api
@@ -76,7 +63,7 @@ Resources:
       Handler: index.handler
       Policies:
         - DynamoDBCrudPolicy:
-            TableName: customer_ids
+            TableName: !Ref ExistingCustomerTableName
       Events:
         GetCustomer:
           Type: Api
@@ -94,7 +81,7 @@ Resources:
       Handler: index.handler
       Policies:
         - DynamoDBCrudPolicy:
-            TableName: customer_ids
+            TableName: !Ref ExistingCustomerTableName
       Events:
         DeleteCustomer:
           Type: Api
@@ -123,7 +110,7 @@ Resources:
         DynamoDBStream:
           Type: DynamoDB
           Properties:
-            Stream: !GetAtt CustomerTable.StreamArn
+            Stream: !Sub arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${ExistingCustomerTableName}/stream/* 
             StartingPosition: TRIM_HORIZON
 
   ProcessCustomerFunction:
@@ -133,10 +120,10 @@ Resources:
       Handler: app.handler
       Policies:
         - DynamoDBCrudPolicy:
-            TableName: customer_ids
+            TableName: !Ref ExistingCustomerTableName
       Environment:
         Variables:
-          PROCESSED_CUSTOMERS_TABLE: !Ref CustomerTable
+          PROCESSED_CUSTOMERS_TABLE: !Ref ExistingCustomerTableName
 
   CustomerStateMachine:
     Type: AWS::Serverless::StateMachine
@@ -222,8 +209,8 @@ Outputs:
     Description: "Base URL for Customer API"
     Value: !Sub "https://${CustomerApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/"
   CustomerTableName:
-    Description: "DynamoDB table name"
-    Value: !Ref CustomerTable
+    Description: "Existing DynamoDB table name"
+    Value: !Ref ExistingCustomerTableName
   CustomerApiKey:
     Description: "API Key for Customer API"
     Value: !Ref CustomerApiKey
@@ -231,5 +218,5 @@ Outputs:
     Description: "ARN of Customer Step Function"
     Value: !Ref CustomerStateMachine
   UserCreatedTopicArn:
-    Description: "SNS Topic ARN for new user alerts"
-    Value: !Ref UserCreatedTopic
+    Description: "Existing SNS Topic ARN for new user alerts"
+    Value: !Ref ExistingUserCreatedTopicArn
