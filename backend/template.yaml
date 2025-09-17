@@ -23,6 +23,7 @@ Globals:
         TABLE_NAME: !Ref ExistingCustomerTableName
 
 Resources:
+  ### API
   CustomerApi:
     Type: AWS::Serverless::Api
     Properties:
@@ -32,6 +33,7 @@ Resources:
         AllowHeaders: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
         AllowOrigin: "'*'"
 
+  ### Lambda: Put Customer
   PutCustomerFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -56,6 +58,7 @@ Resources:
             Auth:
               ApiKeyRequired: true
 
+  ### Lambda: Get Customer
   GetCustomerFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -74,6 +77,7 @@ Resources:
             Auth:
               ApiKeyRequired: true
 
+  ### Lambda: Delete Customer
   DeleteCustomerFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -92,6 +96,7 @@ Resources:
             Auth:
               ApiKeyRequired: true
 
+  ### Lambda: Stream Processor
   StreamProcessorFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -110,9 +115,10 @@ Resources:
         DynamoDBStream:
           Type: DynamoDB
           Properties:
-            Stream: !Sub arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${ExistingCustomerTableName}/stream/* 
+            Stream: !Sub arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${ExistingCustomerTableName}/stream/*
             StartingPosition: TRIM_HORIZON
 
+  ### Lambda: Process Customer
   ProcessCustomerFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -125,6 +131,7 @@ Resources:
         Variables:
           PROCESSED_CUSTOMERS_TABLE: !Ref ExistingCustomerTableName
 
+  ### Step Function
   CustomerStateMachine:
     Type: AWS::Serverless::StateMachine
     Properties:
@@ -141,13 +148,31 @@ Resources:
         - LambdaInvokePolicy:
             FunctionName: !Ref ProcessCustomerFunction
 
+  ### API Gateway Deployment + Stage
+  CustomerApiDeployment:
+    Type: AWS::ApiGateway::Deployment
+    Properties:
+      RestApiId: !Ref CustomerApi
+    DependsOn:
+      - PutCustomerFunction
+      - GetCustomerFunction
+      - DeleteCustomerFunction
+
+  CustomerApiStage:
+    Type: AWS::ApiGateway::Stage
+    Properties:
+      StageName: Prod
+      RestApiId: !Ref CustomerApi
+      DeploymentId: !Ref CustomerApiDeployment
+
+  ### Usage Plan + ApiKey
   CustomerUsagePlan:
     Type: AWS::ApiGateway::UsagePlan
     Properties:
-      UsagePlanName: CustomerPlan
+      UsagePlanName: !Sub "CustomerPlan-${AWS::StackName}"
       ApiStages:
         - ApiId: !Ref CustomerApi
-          Stage: Prod
+          Stage: !Ref CustomerApiStage
       Throttle:
         RateLimit: 10
         BurstLimit: 5
@@ -158,11 +183,8 @@ Resources:
   CustomerApiKey:
     Type: AWS::ApiGateway::ApiKey
     Properties:
-      Name: CustomerApiKey
+      Name: !Sub "CustomerApiKey-${AWS::StackName}"
       Enabled: true
-      StageKeys:
-        - RestApiId: !Ref CustomerApi
-          StageName: Prod
 
   CustomerUsagePlanKey:
     Type: AWS::ApiGateway::UsagePlanKey
@@ -171,6 +193,7 @@ Resources:
       KeyType: API_KEY
       UsagePlanId: !Ref CustomerUsagePlan
 
+  ### EventBridge for Step Function
   EventBridgeInvokeRole:
     Type: AWS::IAM::Role
     Properties:
@@ -208,15 +231,19 @@ Outputs:
   CustomerApiBaseUrl:
     Description: "Base URL for Customer API"
     Value: !Sub "https://${CustomerApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/"
+
   CustomerTableName:
     Description: "Existing DynamoDB table name"
     Value: !Ref ExistingCustomerTableName
-  CustomerApiKey:
+
+  CustomerApiKeyValue:
     Description: "API Key for Customer API"
     Value: !Ref CustomerApiKey
+
   CustomerStateMachineArn:
     Description: "ARN of Customer Step Function"
     Value: !Ref CustomerStateMachine
+
   UserCreatedTopicArn:
     Description: "Existing SNS Topic ARN for new user alerts"
     Value: !Ref ExistingUserCreatedTopicArn
