@@ -16,6 +16,7 @@ It consists of:
 
 ## ⚙️ Backend (AWS SAM)
 
+
 ### Prerequisites
 
 - AWS account
